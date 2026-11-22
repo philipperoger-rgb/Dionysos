@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!-- ... existing code ... -->
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        /* Force l'application, ses modales et ses notifications au-dessus de tout overlay tiers */
+        #app {
+            position: relative;
+            z-index: 2147483647;
+            min-height: 100dvh;
+            background-color: var(--albatre);
+            isolation: isolate;
+        }
+        #modals {
+            position: relative;
+            z-index: 2147483647;
+        }
+        #toast-container {
+            z-index: 2147483647;
+        }
+        /* Relègue tout conteneur injecté hors de l'application (ex: badge/bandeau Netlify) sous #app */
+        body > :not(#app):not(#modals):not(#toast-container):not(script):not(style):not(link):not(a),
+        html > :not(head):not(body) {
+            z-index: -1 !important;
+            pointer-events: none !important;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased text-anthracite bg-albatre selection:bg-perle text-base">
+
+    <!-- App Mount Point -->
+    <div id="app"></div>
+
+    <!-- Modals Container -->
+    <div id="modals" class="relative"></div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed top-4 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none px-4"></div>
+
+    <script>
+<!-- ... existing code ... -->
+            const bottomNav = state.profile && state.currentRoute !== 'onboarding' ? components.bottomNav() : '';
+
+            app.innerHTML = `
+                <main class="min-h-[100dvh] page-transition ${bottomNav ? 'pb-[calc(80px+var(--sab))]' : ''}">
+                    ${content}
+                </main>
+                ${bottomNav}
+            `;
+
+            attachPostRenderScripts();
+        };
+<!-- ... existing code ... -->
+        const views = {
+            ageGate: () => `
+                <div class="min-h-[100dvh] flex flex-col items-center justify-center px-6 bg-blanc">
+                    <div class="text-center max-w-sm w-full">
+<!-- ... existing code ... -->
+            loginScreen: () => {
+                const hasPin = Boolean(getImmutablePin());
+                return `
+                <div class="min-h-[100dvh] flex flex-col items-center justify-center px-6 bg-blanc page-transition">
+                    <div class="text-center max-w-sm w-full">
+<!-- ... existing code ... -->
+        // --- 12. OVERLAY GUARD & BOOT SEQUENCE ---
+
+        /**
+         * Garantit que #app, #modals et #toast-container restent toujours au-dessus
+         * des bandeaux/badges injectés dynamiquement (ex: barre Netlify).
+         */
+        const enforceAppLayering = () => {
+            try {
+                // 1. Utilise le paramètre officiel Netlify pour masquer le tiroir sur *.netlify.app (1 seule fois par onglet)
+                if (window.location.hostname.endsWith('.netlify.app')) {
+                    const url = new URL(window.location.href);
+                    if (!url.searchParams.has('ntl-drawer-state') && !sessionStorage.getItem('dionysos_ntl_hidden')) {
+                        sessionStorage.setItem('dionysos_ntl_hidden', '1');
+                        url.searchParams.set('ntl-drawer-state', 'hidden');
+                        window.location.replace(url.toString());
+                        return false;
+                    }
+                }
+            } catch (e) {
+                console.warn("Paramètre Netlify non appliqué :", e);
+            }
+
+            const allowedBodyIds = new Set(['app', 'modals', 'toast-container']);
+            const allowedTags = new Set(['SCRIPT', 'STYLE', 'LINK', 'A', 'HEAD', 'BODY']);
+
+            // Déplace tout élément tiers avant #app pour que #app l'emporte en cas d'égalité de z-index maximal
+            const demoteForeignNode = (node) => {
+                if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+                if (allowedTags.has(node.tagName) || allowedBodyIds.has(node.id)) return;
+
+                try {
+                    if (typeof node.hidePopover === 'function' && node.hasAttribute('popover')) {
+                        node.hidePopover();
+                    }
+                } catch (e) {
+                    // Ignore si le popover n'est pas ouvert
+                }
+
+                node.style.setProperty('z-index', '-1', 'important');
+                node.style.setProperty('pointer-events', 'none', 'important');
+
+                const appEl = $('app');
+                if (node.parentNode === document.body && appEl && node.compareDocumentPosition(appEl) & Node.DOCUMENT_POSITION_PRECEDING) {
+                    document.body.insertBefore(node, appEl);
+                }
+            };
+
+            const scanExternalOverlays = () => {
+                Array.from(document.body.children).forEach(demoteForeignNode);
+                Array.from(document.documentElement.children).forEach(demoteForeignNode);
+            };
+
+            scanExternalOverlays();
+
+            if (window.MutationObserver) {
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        mutation.addedNodes.forEach(demoteForeignNode);
+                    });
+                });
+                observer.observe(document.body, { childList: true });
+                observer.observe(document.documentElement, { childList: true });
+            }
+
+            return true;
+        };
+
+        const startApp = async () => {
+            try {
+                if (!enforceAppLayering()) return;
+                await initDB();
+                await loadState();
+                render();
+            } catch (error) {
+                console.error("Erreur critique:", error);
+                document.body.innerHTML = `<div class="p-10 text-center text-red-500 font-medium">Erreur d'affichage : ${escapeHtml(error.message || error)}</div>`;
+            }
+        };
+
+        startApp();
+    </script>
+</body>
+</html>
